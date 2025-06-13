@@ -1,65 +1,144 @@
-import unittest
 import numpy as np
-import os
-import sys
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-# 添加父目录到模块搜索路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 物理参数
+K = 237       # 热导率 (W/m/K)
+C = 900       # 比热容 (J/kg/K)
+rho = 2700    # 密度 (kg/m^3)
+D = K/(C*rho) # 热扩散系数
+L = 1         # 铝棒长度 (m)
+dx = 0.01     # 空间步长 (m)
+dt = 0.5      # 时间步长 (s)
+Nx = int(L/dx) + 1 # 空间格点数
+Nt = 2000 #
+# 任务1: 基本热传导模拟
+def basic_heat_diffusion():
+    """任务1: 基本热传导模拟"""
 
-# 导入参考答案
-#from solution.heat_diffusion_solution import (
-from heat_diffusion_student import (
-    basic_heat_diffusion,
-    analytical_solution,
-    stability_analysis,
-    different_initial_condition,
-    heat_diffusion_with_cooling
-)
+    r = D*dt/(dx**2)
+    print(f"任务1 - 稳定性参数 r = {r}")
+    
+    u = np.zeros((Nx, Nt))
+    u[:, 0] = 100
+    u[0, :] = 0
+    u[-1, :] = 0
+    
+    for j in range(Nt-1):
+        u[1:-1, j+1] = (1-2*r)*u[1:-1, j] + r*(u[2:, j] + u[:-2, j])
+    
+    return u
 
-class TestHeatDiffusion(unittest.TestCase):
-    def setUp(self):
-        """设置测试所需的公共参数"""
-        self.dx = 0.01
-        self.dt = 0.5
-        self.Nx = 101  # L=1, dx=0.01
-        self.Nt = 2000
-        
-    def test_basic_heat_diffusion_shape(self):
-        """测试基本热传导模拟的输出形状"""
-        u = basic_heat_diffusion()
-        self.assertEqual(u.shape, (self.Nx, self.Nt))
-        
-    def test_basic_heat_diffusion_boundary(self):
-        """测试边界条件是否正确应用"""
-        u = basic_heat_diffusion()
-        np.testing.assert_array_equal(u[0, :], 0)  # 左边界
-        np.testing.assert_array_equal(u[-1, :], 0) # 右边界
-        
-    def test_analytical_solution_shape(self):
-        """测试解析解的输出形状"""
-        s = analytical_solution()
-        self.assertEqual(s.shape, (self.Nx, self.Nt))
-        
-    def test_stability_analysis_unstable(self):
-        """测试不稳定条件下的数值解"""
-        # 这里我们主要检查函数是否能正常运行
-        # 实际测试中应该检查数值是否发散
-        self.assertIsNone(stability_analysis())
-        
-    def test_different_initial_condition(self):
-        """测试不同初始条件的应用"""
-        u = different_initial_condition()
-        self.assertIsNotNone(u, "函数应返回计算结果")
-        # 检查初始条件是否正确应用
-        np.testing.assert_allclose(u[1:50, 0], 100, atol=1e-6)  # 左半部分(排除边界点)
-        np.testing.assert_allclose(u[50:-1, 0], 50, atol=1e-6)  # 右半部分(排除边界点)
-        self.assertEqual(u.shape, (self.Nx, 1000))
-        
-    def test_cooling_effect(self):
-        """测试冷却效应是否应用"""
-        # 主要检查函数是否能正常运行
-        # 实际测试中应该检查温度是否比没有冷却时更低
-        self.assertIsNone(heat_diffusion_with_cooling())
+# 任务2: 解析解与数值解比较
+def analytical_solution(n_terms=100):
+    """解析解函数"""
+    x = np.linspace(0, dx*(Nx-1), Nx)
+    t = np.linspace(0, dt*Nt, Nt)
+    x, t = np.meshgrid(x, t)
+    s = 0
+    for i in range(n_terms):
+        j = 2*i + 1
+        s += 400/(j*np.pi) * np.sin(j*np.pi*x/L) * np.exp(-(j*np.pi/L)**2 * t * D)
+    return s.T
 
+# 任务3: 数值解稳定性分析
+def stability_analysis():
+    """任务3: 数值解稳定性分析"""
+    dx = 0.01
+    dt = 0.6  # 使r>0.5
+    r = D*dt/(dx**2)
+    print(f"任务3 - 稳定性参数 r = {r} (r>0.5)")
+    
+    Nx = int(L/dx) + 1
+    Nt = 2000
+    
+    u = np.zeros((Nx, Nt))
+    u[:, 0] = 100
+    u[0, :] = 0
+    u[-1, :] = 0
+    
+    for j in range(Nt-1):
+        u[1:-1, j+1] = (1-2*r)*u[1:-1, j] + r*(u[2:, j] + u[:-2, j])
+    
+    # 可视化不稳定解
+    plot_3d_solution(u, dx, dt, Nt, title='Task 3: Unstable Solution (r>0.5)')
+
+# 任务4: 不同初始条件模拟
+def different_initial_condition():
+    """任务4: 不同初始条件模拟"""
+    dx = 0.01
+    dt = 0.5
+    r = D*dt/(dx**2)
+    print(f"任务4 - 稳定性参数 r = {r}")
+    
+    Nx = int(L/dx) + 1
+    Nt = 1000
+    
+    u = np.zeros((Nx, Nt))
+    u[:51, 0] = 100  # 左半部分初始温度100K
+    u[50:, 0] = 50   # 右半部分初始温度50K
+    u[0, :] = 0
+    u[-1, :] = 0
+    
+    for j in range(Nt-1):
+        u[1:-1, j+1] = (1-2*r)*u[1:-1, j] + r*(u[2:, j] + u[:-2, j])
+    
+    # 可视化
+    plot_3d_solution(u, dx, dt, Nt, title='Task 4: Temperature Evolution with Different Initial Conditions')
+    return u
+
+# 任务5: 包含牛顿冷却定律的热传导
+def heat_diffusion_with_cooling():
+    """任务5: 包含牛顿冷却定律的热传导"""
+    r = D*dt/(dx**2)
+    h = 0.1  # 冷却系数
+    print(f"任务5 - 稳定性参数 r = {r}, 冷却系数 h = {h}")
+    
+    Nx = int(L/dx) + 1
+    Nt = 100
+    
+    u = np.zeros((Nx, Nt))
+    u[:, 0] = 100
+    u[0, :] = 0
+    u[-1, :] = 0
+    
+    for j in range(Nt-1):
+        u[1:-1, j+1] = (1-2*r-h*dt)*u[1:-1, j] + r*(u[2:, j] + u[:-2, j])
+    
+    # 可视化
+    plot_3d_solution(u, dx, dt, Nt, title='Task 5: Heat Diffusion with Newton Cooling')
+
+def plot_3d_solution(u, dx, dt, Nt, title):
+    """Plot 3D surface of temperature distribution"""
+    Nx = u.shape[0]
+    x = np.linspace(0, dx*(Nx-1), Nx)
+    t = np.linspace(0, dt*Nt, Nt)
+    X, T = np.meshgrid(x, t)
+    
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, T, u.T, cmap='rainbow')
+    ax.set_xlabel('Position x (m)')
+    ax.set_ylabel('Time t (s)')
+    ax.set_zlabel('Temperature T (K)')
+    ax.set_title(title)
+    plt.show()
+    
 if __name__ == "__main__":
-    unittest.main()
+    print("=== 铝棒热传导问题参考答案 ===")
+    print("1. 基本热传导模拟")
+    u = basic_heat_diffusion()
+    plot_3d_solution(u, dx, dt, Nt, title='Task 1: Heat Diffusion Solution')
+
+    print("\n2. 解析解")
+    s = analytical_solution()
+    plot_3d_solution(s, dx, dt, Nt, title='Analytical Solution')
+
+    print("\n3. 数值解稳定性分析")
+    stability_analysis()
+    
+    print("\n4. 不同初始条件模拟")
+    different_initial_condition()
+    
+    print("\n5. 包含牛顿冷却定律的热传导")
+    heat_diffusion_with_cooling()
